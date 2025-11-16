@@ -1,0 +1,542 @@
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Note, InsertNote } from "@shared/schema";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { useTheme } from "@/components/theme-provider";
+import {
+  Plus,
+  Search,
+  Download,
+  Moon,
+  Sun,
+  Save,
+  Trash2,
+  X,
+  Tag as TagIcon,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+export default function Home() {
+  const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
+
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterTag, setFilterTag] = useState<string>("all");
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"txt" | "md">("txt");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const { data: notes = [], isLoading } = useQuery<Note[]>({
+    queryKey: debouncedSearch ? ["/api/notes", { search: debouncedSearch }] : ["/api/notes"],
+    queryFn: async () => {
+      if (debouncedSearch) {
+        const response = await fetch(`/api/notes?search=${encodeURIComponent(debouncedSearch)}`);
+        if (!response.ok) throw new Error("Failed to fetch notes");
+        return response.json();
+      }
+      const response = await fetch("/api/notes");
+      if (!response.ok) throw new Error("Failed to fetch notes");
+      return response.json();
+    },
+  });
+
+  const createNoteMutation = useMutation({
+    mutationFn: async (data: InsertNote) => {
+      return await apiRequest("POST", "/api/notes", data);
+    },
+    onSuccess: (newNote: Note) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      setSelectedNote(newNote);
+      toast({ description: "Note created successfully" });
+      setHasUnsavedChanges(false);
+    },
+  });
+
+  const updateNoteMutation = useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: InsertNote;
+    }) => {
+      return await apiRequest("PATCH", `/api/notes/${id}`, data);
+    },
+    onSuccess: (updatedNote: Note) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      setSelectedNote(updatedNote);
+      toast({ description: "Note saved successfully" });
+      setHasUnsavedChanges(false);
+    },
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/notes/${id}`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      toast({ description: "Note deleted successfully" });
+      clearEditor();
+    },
+  });
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    notes.forEach((note) => {
+      note.tags?.forEach((tag) => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [notes]);
+
+  const filteredNotes = useMemo(() => {
+    if (filterTag === "all") {
+      return notes;
+    }
+    return notes.filter((note) => note.tags?.includes(filterTag));
+  }, [notes, filterTag]);
+
+  useEffect(() => {
+    if (selectedNote) {
+      setTitle(selectedNote.title ?? "");
+      setContent(selectedNote.content ?? "");
+      setTags(selectedNote.tags ?? []);
+      setHasUnsavedChanges(false);
+    }
+  }, [selectedNote]);
+
+  useEffect(() => {
+    const hasChanges =
+      selectedNote &&
+      (selectedNote.title !== title ||
+        selectedNote.content !== content ||
+        JSON.stringify(selectedNote.tags ?? []) !== JSON.stringify(tags ?? []));
+    setHasUnsavedChanges(!!hasChanges);
+  }, [title, content, tags, selectedNote]);
+
+  const clearEditor = () => {
+    setSelectedNote(null);
+    setTitle("");
+    setContent("");
+    setTags([]);
+    setTagInput("");
+    setHasUnsavedChanges(false);
+  };
+
+  const handleNewNote = () => {
+    clearEditor();
+  };
+
+  const handleSave = () => {
+    if (!title?.trim()) {
+      toast({
+        description: "Please enter a title",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const noteData: InsertNote = {
+      title: title?.trim() ?? "",
+      content: content?.trim() ?? "",
+      tags,
+    };
+
+    if (selectedNote) {
+      updateNoteMutation.mutate({ id: selectedNote.id, data: noteData });
+    } else {
+      createNoteMutation.mutate(noteData);
+    }
+  };
+
+  const handleDelete = () => {
+    if (selectedNote) {
+      deleteNoteMutation.mutate(selectedNote.id);
+    }
+  };
+
+  const handleAddTag = () => {
+    const trimmedTag = tagInput?.trim() ?? "";
+    if (trimmedTag && !tags.includes(trimmedTag)) {
+      setTags([...tags, trimmedTag]);
+      setTagInput("");
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((tag) => tag !== tagToRemove));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
+
+  const handleExport = () => {
+    if (!selectedNote) return;
+
+    let content = "";
+    let filename = "";
+
+    if (exportFormat === "txt") {
+      content = `${selectedNote.title}\n\n${selectedNote.content}\n\nTags: ${selectedNote.tags.join(", ")}`;
+      filename = `${selectedNote.title.replace(/[^a-z0-9]/gi, "_")}.txt`;
+    } else {
+      content = `# ${selectedNote.title}\n\n${selectedNote.content}\n\n**Tags:** ${selectedNote.tags.join(", ")}`;
+      filename = `${selectedNote.title.replace(/[^a-z0-9]/gi, "_")}.md`;
+    }
+
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setExportDialogOpen(false);
+    toast({ description: "Note exported successfully" });
+  };
+
+  return (
+    <div className="flex h-screen bg-background overflow-hidden">
+      <div className="w-80 border-r-2 border-border flex flex-col">
+        <div className="p-4 border-b-2 border-border">
+          <div className="mb-4">
+            <pre className="text-[10px] leading-[1.2] select-none font-bold">
+{`███╗   ██╗ ██████╗ ████████╗███████╗
+████╗  ██║██╔═══██╗╚══██╔══╝██╔════╝
+██╔██╗ ██║██║   ██║   ██║   █████╗  
+██║╚██╗██║██║   ██║   ██║   ██╔══╝  
+██║ ╚████║╚██████╔╝   ██║   ███████╗
+╚═╝  ╚═══╝ ╚═════╝    ╚═╝   ╚══════╝`}
+            </pre>
+          </div>
+
+          <div className="relative mb-4">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              data-testid="input-search"
+              type="search"
+              placeholder="> SEARCH NOTES..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 border-2 font-mono text-sm"
+            />
+          </div>
+
+          <Select value={filterTag} onValueChange={setFilterTag}>
+            <SelectTrigger
+              data-testid="select-filter-tag"
+              className="border-2 font-mono text-sm"
+            >
+              <SelectValue placeholder="FILTER BY TAG" />
+            </SelectTrigger>
+            <SelectContent className="border-2">
+              <SelectItem value="all">ALL TAGS</SelectItem>
+              {allTags.map((tag) => (
+                <SelectItem key={tag} value={tag}>
+                  {tag.toUpperCase()}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            data-testid="button-new-note"
+            onClick={handleNewNote}
+            className="w-full mt-4 border-2"
+            variant="default"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            NEW NOTE
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2">
+          {isLoading ? (
+            <div className="p-4 text-center text-sm text-muted-foreground font-mono">
+              LOADING...
+            </div>
+          ) : filteredNotes.length === 0 ? (
+            <div className="p-4 text-center">
+              <pre className="text-xs text-muted-foreground mb-2">
+{`┌─────────────┐
+│  NO NOTES   │
+│   FOUND     │
+└─────────────┘`}
+              </pre>
+              <p className="text-xs text-muted-foreground font-mono">
+                {searchQuery || filterTag !== "all"
+                  ? "TRY DIFFERENT FILTERS"
+                  : "CREATE YOUR FIRST NOTE"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredNotes.map((note) => (
+                <button
+                  key={note.id}
+                  data-testid={`note-item-${note.id}`}
+                  onClick={() => setSelectedNote(note)}
+                  className={`w-full text-left p-3 border-2 transition-colors hover-elevate active-elevate-2 ${
+                    selectedNote?.id === note.id
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-card border-border"
+                  }`}
+                >
+                  <h3
+                    className="font-bold text-sm mb-1 truncate"
+                    data-testid={`note-title-${note.id}`}
+                  >
+                    {note.title}
+                  </h3>
+                  <p className="text-xs opacity-75 line-clamp-2 mb-2">
+                    {note.content || "Empty note"}
+                  </p>
+                  {note.tags && note.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {note.tags.slice(0, 3).map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="text-[10px] px-1 py-0"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                      {note.tags.length > 3 && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] px-1 py-0"
+                        >
+                          +{note.tags.length - 3}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-2 border-t-2 border-border flex gap-2">
+          <Button
+            data-testid="button-theme-toggle"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            variant="outline"
+            size="icon"
+            className="border-2"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
+          <div className="flex-1 text-xs font-mono flex items-center justify-center border-2 border-border px-2">
+            {notes.length} NOTE{notes.length !== 1 ? "S" : ""}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 flex flex-col">
+        <div className="border-b-2 border-border p-4 flex items-center gap-2">
+          <Input
+            data-testid="input-note-title"
+            type="text"
+            placeholder="NOTE TITLE..."
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="flex-1 border-2 font-bold text-lg"
+          />
+          <Button
+            data-testid="button-save-note"
+            onClick={handleSave}
+            disabled={
+              !title?.trim() ||
+              createNoteMutation.isPending ||
+              updateNoteMutation.isPending
+            }
+            className="border-2"
+            variant="default"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {createNoteMutation.isPending || updateNoteMutation.isPending
+              ? "SAVING..."
+              : hasUnsavedChanges
+              ? "SAVE*"
+              : "SAVE"}
+          </Button>
+          {selectedNote && (
+            <>
+              <Button
+                data-testid="button-export-note"
+                onClick={() => setExportDialogOpen(true)}
+                variant="secondary"
+                className="border-2"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                EXPORT
+              </Button>
+              <Button
+                data-testid="button-delete-note"
+                onClick={handleDelete}
+                disabled={deleteNoteMutation.isPending}
+                variant="destructive"
+                className="border-2"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+        </div>
+
+        <div className="border-b-2 border-border p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TagIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-mono font-bold">TAGS:</span>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {tags?.map((tag) => (
+              <Badge
+                key={tag}
+                variant="secondary"
+                className="border-2 text-sm pl-2 pr-1 py-1"
+                data-testid={`tag-${tag}`}
+              >
+                {tag}
+                <button
+                  data-testid={`button-remove-tag-${tag}`}
+                  onClick={() => handleRemoveTag(tag)}
+                  className="ml-1 hover-elevate active-elevate-2"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              data-testid="input-add-tag"
+              type="text"
+              placeholder="ADD TAG..."
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="border-2 font-mono text-sm"
+            />
+            <Button
+              data-testid="button-add-tag"
+              onClick={handleAddTag}
+              disabled={!tagInput?.trim()}
+              variant="secondary"
+              className="border-2"
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex-1 p-4 overflow-hidden">
+          <Textarea
+            data-testid="textarea-note-content"
+            placeholder="START TYPING YOUR NOTE..."
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            className="w-full h-full border-2 font-mono text-sm resize-none"
+          />
+        </div>
+      </div>
+
+      <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+        <DialogContent className="border-2">
+          <DialogHeader>
+            <DialogTitle className="font-mono">EXPORT NOTE</DialogTitle>
+            <DialogDescription className="font-mono text-xs">
+              Choose the export format for your note
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="format" className="font-mono text-sm mb-2 block">
+              FORMAT:
+            </Label>
+            <Select
+              value={exportFormat}
+              onValueChange={(value: "txt" | "md") => setExportFormat(value)}
+            >
+              <SelectTrigger
+                id="format"
+                data-testid="select-export-format"
+                className="border-2 font-mono"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-2">
+                <SelectItem value="txt">Plain Text (.txt)</SelectItem>
+                <SelectItem value="md">Markdown (.md)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              data-testid="button-cancel-export"
+              onClick={() => setExportDialogOpen(false)}
+              variant="outline"
+              className="border-2"
+            >
+              CANCEL
+            </Button>
+            <Button
+              data-testid="button-confirm-export"
+              onClick={handleExport}
+              className="border-2"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              EXPORT
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
