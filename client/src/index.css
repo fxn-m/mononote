@@ -173,6 +173,26 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+
+  /* Mobile optimizations */
+  @media (max-width: 768px) {
+    /* Prevent text size adjustment on iOS */
+    html {
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
+
+    /* Improve tap highlight */
+    button, a {
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+      tap-highlight-color: rgba(0, 0, 0, 0.1);
+    }
+
+    /* Prevent pull-to-refresh on mobile */
+    body {
+      overscroll-behavior-y: contain;
+    }
+  }
 }
 
 /**
