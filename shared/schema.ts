@@ -1,22 +1,19 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const notes = pgTable("notes", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  title: text("title").notNull(),
-  content: text("content").notNull().default(""),
-  tags: text("tags").array().notNull().default(sql`'{}'::text[]`),
-  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+export const noteSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1),
+  content: z.string().default(""),
+  tags: z.array(z.string()).default([]),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
-export const insertNoteSchema = createInsertSchema(notes).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
+export const insertNoteSchema = z.object({
+  title: z.string().min(1),
+  content: z.string().default(""),
+  tags: z.array(z.string()).default([]),
 });
 
+export type Note = z.infer<typeof noteSchema>;
 export type InsertNote = z.infer<typeof insertNoteSchema>;
-export type Note = typeof notes.$inferSelect;

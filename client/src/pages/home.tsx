@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { storage } from "@/lib/storage";
 import type { Note, InsertNote } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,25 +62,21 @@ export default function Home() {
   }, [searchQuery]);
 
   const { data: notes = [], isLoading } = useQuery<Note[]>({
-    queryKey: debouncedSearch ? ["/api/notes", { search: debouncedSearch }] : ["/api/notes"],
+    queryKey: debouncedSearch ? ["notes", { search: debouncedSearch }] : ["notes"],
     queryFn: async () => {
       if (debouncedSearch) {
-        const response = await fetch(`/api/notes?search=${encodeURIComponent(debouncedSearch)}`);
-        if (!response.ok) throw new Error("Failed to fetch notes");
-        return response.json();
+        return await storage.searchNotes(debouncedSearch);
       }
-      const response = await fetch("/api/notes");
-      if (!response.ok) throw new Error("Failed to fetch notes");
-      return response.json();
+      return await storage.getNotes();
     },
   });
 
   const createNoteMutation = useMutation({
     mutationFn: async (data: InsertNote) => {
-      return await apiRequest("POST", "/api/notes", data);
+      return await storage.createNote(data);
     },
     onSuccess: (newNote: Note) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
       setSelectedNote(newNote);
       toast({ description: "Note created successfully" });
       setHasUnsavedChanges(false);
@@ -94,10 +91,12 @@ export default function Home() {
       id: string;
       data: InsertNote;
     }) => {
-      return await apiRequest("PATCH", `/api/notes/${id}`, data);
+      const updatedNote = await storage.updateNote(id, data);
+      if (!updatedNote) throw new Error("Note not found");
+      return updatedNote;
     },
     onSuccess: (updatedNote: Note) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
       setSelectedNote(updatedNote);
       toast({ description: "Note saved successfully" });
       setHasUnsavedChanges(false);
@@ -106,10 +105,12 @@ export default function Home() {
 
   const deleteNoteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest("DELETE", `/api/notes/${id}`, {});
+      const deleted = await storage.deleteNote(id);
+      if (!deleted) throw new Error("Note not found");
+      return { id };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/notes"] });
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
       toast({ description: "Note deleted successfully" });
       clearEditor();
     },

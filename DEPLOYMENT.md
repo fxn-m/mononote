@@ -5,8 +5,7 @@ This application is configured for deployment on Render.com.
 ## Prerequisites
 
 - A Render.com account
-- A PostgreSQL database (can be provisioned through Render or use Neon, Supabase, etc.)
-- Your database connection string
+- No database required - the app uses localStorage on the client side
 
 ## Deployment Steps
 
@@ -32,20 +31,9 @@ Render will automatically detect the `render.yaml` file, but you can also config
 Add the following environment variables in the Render dashboard:
 
 - `NODE_ENV`: `production`
-- `DATABASE_URL`: Your PostgreSQL connection string
 - `PORT`: Automatically set by Render (no need to set manually)
 
-If you're using session management or authentication, you may also need:
-- `SESSION_SECRET`: A random secret string for session encryption
-
-### 4. Database Setup
-
-If you haven't set up a database yet:
-
-1. Create a PostgreSQL database on Render (or use Neon/Supabase)
-2. Get the connection string
-3. Add it as `DATABASE_URL` environment variable
-4. Run migrations: `pnpm run db:push` (you can do this locally or via Render shell)
+**Note**: No database configuration needed! The app uses browser localStorage for data persistence.
 
 ### 5. Deploy
 
@@ -59,7 +47,7 @@ Click "Create Web Service" and Render will:
 The build process:
 1. **Frontend**: Vite builds the React app to `dist/public`
 2. **Backend**: esbuild bundles the Express server to `dist/index.js`
-3. **Production**: The server serves static files from `dist/public` and handles API routes
+3. **Production**: The server serves static files from `dist/public` (no API routes needed - data is stored in browser localStorage)
 
 ## Health Check
 
@@ -81,8 +69,8 @@ NODE_ENV=production PORT=3000 pnpm run start
 
 - **Build fails**: Check that all dependencies are listed in `package.json`
 - **Static files not found**: Ensure `pnpm run build` completed successfully
-- **Database connection errors**: Verify `DATABASE_URL` is set correctly
 - **Port errors**: Render automatically sets `PORT`, don't override it
+- **Data not persisting**: Notes are stored in browser localStorage, so data is per-browser/device
 
 ## Alternative Platforms
 
