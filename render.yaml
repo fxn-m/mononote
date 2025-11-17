@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mononote
+    env: node
+    buildCommand: npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: true
+    healthCheckPath: /
+
