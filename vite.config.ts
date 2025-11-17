@@ -3,12 +3,10 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES 
-    ? `/${process.env.GITHUB_REPOSITORY?.split('/')[1] || 'mononote'}/` 
-    : '/',
-  plugins: [
-    react(),
-  ],
+  base: process.env.GITHUB_PAGES
+    ? `/${process.env.GITHUB_REPOSITORY?.split("/")[1] || "mononote"}/`
+    : "/",
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -18,7 +16,7 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
     copyPublicDir: true,
   },
