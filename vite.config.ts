@@ -3,7 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 
 export default defineConfig({
-  base: process.env.GITHUB_PAGES ? `/${process.env.GITHUB_REPOSITORY?.split('/')[1] || ''}/` : '/',
+  base: process.env.GITHUB_PAGES 
+    ? `/${process.env.GITHUB_REPOSITORY?.split('/')[1] || 'mononote'}/` 
+    : '/',
   plugins: [
     react(),
   ],
