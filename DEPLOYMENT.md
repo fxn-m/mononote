@@ -23,8 +23,8 @@ Render will automatically detect the `render.yaml` file, but you can also config
 
 - **Name**: mononote (or your preferred name)
 - **Environment**: Node
-- **Build Command**: `npm run build`
-- **Start Command**: `npm run start`
+- **Build Command**: `pnpm run build`
+- **Start Command**: `pnpm run start`
 - **Plan**: Choose your preferred plan (Free tier available)
 
 ### 3. Environment Variables
@@ -45,14 +45,14 @@ If you haven't set up a database yet:
 1. Create a PostgreSQL database on Render (or use Neon/Supabase)
 2. Get the connection string
 3. Add it as `DATABASE_URL` environment variable
-4. Run migrations: `npm run db:push` (you can do this locally or via Render shell)
+4. Run migrations: `pnpm run db:push` (you can do this locally or via Render shell)
 
 ### 5. Deploy
 
 Click "Create Web Service" and Render will:
-1. Install dependencies
-2. Run the build command (`npm run build`)
-3. Start the service with `npm run start`
+1. Install dependencies (pnpm will be used automatically if `pnpm-lock.yaml` is present)
+2. Run the build command (`pnpm run build`)
+3. Start the service with `pnpm run start`
 
 ## Build Process
 
@@ -71,16 +71,16 @@ You can also deploy manually:
 
 ```bash
 # Build the application
-npm run build
+pnpm run build
 
 # Start in production mode
-NODE_ENV=production PORT=3000 npm run start
+NODE_ENV=production PORT=3000 pnpm run start
 ```
 
 ## Troubleshooting
 
 - **Build fails**: Check that all dependencies are listed in `package.json`
-- **Static files not found**: Ensure `npm run build` completed successfully
+- **Static files not found**: Ensure `pnpm run build` completed successfully
 - **Database connection errors**: Verify `DATABASE_URL` is set correctly
 - **Port errors**: Render automatically sets `PORT`, don't override it
 
@@ -89,5 +89,5 @@ NODE_ENV=production PORT=3000 npm run start
 This application can also be deployed on:
 - **Railway**: Similar setup, uses `railway.toml` or manual configuration
 - **Fly.io**: Requires `fly.toml` configuration
-- **Heroku**: Requires `Procfile` with `web: npm start`
+- **Heroku**: Requires `Procfile` with `web: pnpm start`
 
